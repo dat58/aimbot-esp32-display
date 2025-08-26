@@ -1,0 +1,61 @@
+[package]
+edition      = "2021"
+name         = "aimbot-esp32-display"
+rust-version = "1.86"
+version      = "0.1.0"
+
+[[bin]]
+name = "aimbot-esp32-display"
+path = "./src/bin/main.rs"
+
+[dependencies]
+defmt                  = "1.0.1"
+esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32"] }
+esp-hal                = { version = "=1.0.0-rc.0", features = ["defmt", "esp32", "unstable"] }
+esp-alloc = { version = "0.8.0", features = ["defmt"] }
+esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32"] }
+esp-wifi = { version = "0.15.0", features = [
+  "builtin-scheduler",
+  "defmt",
+  "esp-alloc",
+  "esp32",
+  "smoltcp",
+  "wifi",
+] }
+smoltcp = { version = "0.12.0", default-features = false, features = [
+  "defmt",
+  "medium-ethernet",
+  "multicast",
+  "proto-dhcpv4",
+  "proto-dns",
+  "proto-ipv4",
+  "socket-dns",
+  "socket-icmp",
+  "socket-raw",
+  "socket-tcp",
+  "socket-udp",
+] }
+embedded-graphics = { version = "0.8.1", features = ["defmt"] }
+ssd1306 = "0.10.0"
+embedded-hal = "1.0.0"
+blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-stack.git", rev = "b3ecefc222d8806edd221f266999ca339c52d34e", default-features = false, features = [
+  "dhcpv4",
+  "tcp",
+  "defmt"
+] }
+embedded-io = "0.6.1"
+
+
+[profile.dev]
+# Rust debug is too slow.
+# For debug builds always builds with some optimization
+opt-level = "s"
+
+[profile.release]
+codegen-units    = 1     # LLVM can perform better optimizations using a single thread
+debug            = 2
+debug-assertions = false
+incremental      = false
+lto              = 'fat'
+opt-level        = 's'
+overflow-checks  = false
