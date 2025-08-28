@@ -156,7 +156,7 @@ fn main() -> ! {
 
             Text::with_alignment(
                 text.as_str(),
-                Point::new(10, 32),
+                Point::new(10, 28),
                 text_style,
                 Alignment::Left,
             )
