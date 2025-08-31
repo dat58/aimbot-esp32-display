@@ -43,7 +43,6 @@ blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-st
   "defmt"
 ] }
 embedded-io = "0.6.1"
-display-interface-spi = "0.5"
 embedded-hal-bus = "0.3"
 st7735-lcd = "0.10"
 

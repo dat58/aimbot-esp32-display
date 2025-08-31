@@ -8,7 +8,6 @@ version = "0.1.0"
 dependencies = [
  "blocking-network-stack",
  "defmt 1.0.1",
- "display-interface-spi",
  "embedded-graphics",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
@@ -111,12 +110,6 @@ dependencies = [
  "futures-intrusive",
  "heapless",
 ]
-
-[[package]]
-name = "byte-slice-cast"
-version = "1.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7575182f7272186991736b70173b0ea045398f984bf5ebbb3804736ce1330c9d"
 
 [[package]]
 name = "bytemuck"
@@ -280,24 +273,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "crypto-common",
-]
-
-[[package]]
-name = "display-interface"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ba2aab1ef3793e6f7804162debb5ac5edb93b3d650fbcc5aeb72fcd0e6c03a0"
-
-[[package]]
-name = "display-interface-spi"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f86b9ec30048b1955da2038fcc3c017f419ab21bb0001879d16c0a3749dc6b7a"
-dependencies = [
- "byte-slice-cast",
- "display-interface",
- "embedded-hal 1.0.0",
- "embedded-hal-async",
 ]
 
 [[package]]
