@@ -10,22 +10,26 @@ use aimbot_esp32_display::*;
 use blocking_network_stack::Stack;
 use embedded_graphics::{
     mono_font::{ascii, MonoTextStyle},
-    pixelcolor::BinaryColor,
+    pixelcolor::Rgb565,
     prelude::*,
     text::{Alignment, Text},
 };
 use embedded_hal::delay::DelayNs;
+use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_io::Read;
-use esp_hal::{
-    clock::CpuClock, delay::Delay, i2c::master::I2c, main, time, timer::timg::TimerGroup,
-};
+use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::spi::master::Config as SpiConfig;
+use esp_hal::spi::master::Spi;
+use esp_hal::spi::Mode as SpiMode;
+use esp_hal::time::Rate;
+use esp_hal::{clock::CpuClock, delay::Delay, main, time, timer::timg::TimerGroup};
 use esp_println as _;
 use esp_wifi::wifi;
 use smoltcp::iface::{SocketSet, SocketStorage};
 use smoltcp::socket::dhcpv4::RetryConfig;
 use smoltcp::time::Duration as SmolDuration;
 use smoltcp::wire::DhcpOption;
-use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
+use st7735_lcd::ST7735;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -47,31 +51,34 @@ fn main() -> ! {
 
     esp_alloc::heap_allocator!(size: 74 * 1024);
 
-    let i2c = I2c::new(peripherals.I2C0, Default::default())
-        .unwrap()
-        .with_sda(peripherals.GPIO21)
-        .with_scl(peripherals.GPIO22);
-
-    let interface = I2CDisplayInterface::new(i2c);
-    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
-        .into_buffered_graphics_mode();
+    let spi = Spi::new(
+        peripherals.SPI2,
+        SpiConfig::default()
+            .with_frequency(Rate::from_mhz(60))
+            .with_mode(SpiMode::_0),
+    )
+    .unwrap()
+    .with_sck(peripherals.GPIO18)
+    .with_mosi(peripherals.GPIO23);
+    let cs = Output::new(peripherals.GPIO15, Level::Low, OutputConfig::default());
+    let dc = Output::new(peripherals.GPIO2, Level::Low, OutputConfig::default());
+    let reset = Output::new(peripherals.GPIO4, Level::Low, OutputConfig::default());
+    let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).unwrap();
+    let mut display = ST7735::new(spi_dev, dc, reset, true, false, 128, 160);
 
     let mut delay = Delay::new();
-    display.init().unwrap();
-    display.clear(BinaryColor::Off).unwrap();
-    display.flush().unwrap();
-
-    let text_style = MonoTextStyle::new(&ascii::FONT_7X13_BOLD, BinaryColor::On);
+    display.init(&mut delay).unwrap();
+    // display.set_orientation(&Orientation::Landscape).unwrap();
+    display.clear(Rgb565::RED).unwrap();
 
     Text::with_alignment(
         "Hacking...",
-        Point::new(64, 32),
-        MonoTextStyle::new(&ascii::FONT_9X18_BOLD, BinaryColor::On),
+        Point::new(64, 80),
+        MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::WHITE),
         Alignment::Center,
     )
     .draw(&mut display)
     .unwrap();
-    display.flush().unwrap();
 
     let (ip, port) = get_server_addr();
 
@@ -117,10 +124,11 @@ fn main() -> ! {
     let mut rx_buffer = [0u8; 1536];
     let mut tx_buffer = [0u8; 1536];
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
+    let text_style = MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::BLUE);
 
     loop {
         // clear screen
-        display.clear(BinaryColor::Off).unwrap();
+        display.clear(Rgb565::BLACK).unwrap();
 
         // send request
         let status = send_request(&mut socket, ip, port);
@@ -131,13 +139,12 @@ fn main() -> ! {
                 defmt::error!("{}", err.as_str());
                 Text::with_alignment(
                     "! Game Over !",
-                    Point::new(64, 32),
-                    MonoTextStyle::new(&ascii::FONT_9X18_BOLD, BinaryColor::On),
+                    Point::new(64, 80),
+                    MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::RED),
                     Alignment::Center,
                 )
                 .draw(&mut display)
                 .unwrap();
-                display.flush().unwrap();
                 delay.delay(time::Duration::from_hours(1));
             }
         }
@@ -162,7 +169,6 @@ fn main() -> ! {
             )
             .draw(&mut display)
             .unwrap();
-            display.flush().unwrap();
         }
 
         socket.disconnect();

@@ -36,7 +36,6 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
   "socket-udp",
 ] }
 embedded-graphics = { version = "0.8.1", features = ["defmt"] }
-ssd1306 = "0.10.0"
 embedded-hal = "1.0.0"
 blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-stack.git", rev = "b3ecefc222d8806edd221f266999ca339c52d34e", default-features = false, features = [
   "dhcpv4",
@@ -44,6 +43,9 @@ blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-st
   "defmt"
 ] }
 embedded-io = "0.6.1"
+display-interface-spi = "0.5"
+embedded-hal-bus = "0.3"
+st7735-lcd = "0.10"
 
 
 [profile.dev]
