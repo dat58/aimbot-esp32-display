@@ -6,6 +6,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
+use alloc::string::ToString;
 use aimbot_esp32_display::*;
 use blocking_network_stack::Stack;
 use embedded_graphics::{
@@ -54,7 +55,7 @@ fn main() -> ! {
     let spi = Spi::new(
         peripherals.SPI2,
         SpiConfig::default()
-            .with_frequency(Rate::from_mhz(60))
+            .with_frequency(Rate::from_mhz(4))
             .with_mode(SpiMode::_0),
     )
     .unwrap()
@@ -64,7 +65,7 @@ fn main() -> ! {
     let dc = Output::new(peripherals.GPIO2, Level::Low, OutputConfig::default());
     let reset = Output::new(peripherals.GPIO4, Level::Low, OutputConfig::default());
     let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).unwrap();
-    let mut display = ST7735::new(spi_dev, dc, reset, true, false, 128, 160);
+    let mut display = ST7735::new(spi_dev, dc, reset, true, false, 160, 128);
 
     let mut delay = Delay::new();
     display.init(&mut delay).unwrap();
@@ -126,10 +127,9 @@ fn main() -> ! {
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
     let text_style = MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::BLUE);
 
+    let mut old_aim_signal = alloc::string::String::new();
+    let mut old_aim_mode = alloc::string::String::new();
     loop {
-        // clear screen
-        display.clear(Rgb565::BLACK).unwrap();
-
         // send request
         let status = send_request(&mut socket, ip, port);
 
@@ -160,15 +160,20 @@ fn main() -> ! {
             let aim_signal = body.next().unwrap();
             let aim_mode = body.next().unwrap();
             let text = alloc::format!("Hacking: {aim_signal}\nAimMode: {aim_mode}");
-
-            Text::with_alignment(
-                text.as_str(),
-                Point::new(10, 28),
-                text_style,
-                Alignment::Left,
-            )
-            .draw(&mut display)
-            .unwrap();
+            if old_aim_signal != aim_signal || old_aim_mode != aim_mode {
+                // clear screen
+                display.clear(Rgb565::BLACK).unwrap();
+                Text::with_alignment(
+                    text.as_str(),
+                    Point::new(10, 28),
+                    text_style,
+                    Alignment::Left,
+                )
+                .draw(&mut display)
+                .unwrap();
+                old_aim_signal = aim_signal.to_string();
+                old_aim_mode = aim_mode.to_string();
+            }
         }
 
         socket.disconnect();
