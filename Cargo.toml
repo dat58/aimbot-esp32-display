@@ -9,16 +9,22 @@ name = "aimbot-esp32-display"
 path = "./src/bin/main.rs"
 
 [dependencies]
-defmt                  = "1.0.1"
-esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32"] }
-esp-hal                = { version = "=1.0.0-rc.0", features = ["defmt", "esp32", "unstable"] }
+defmt = "1.0.1"
+esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32c3"] }
+esp-hal = { version = "=1.0.0-rc.0", features = [
+  "defmt",
+  "esp32c3",
+  "unstable",
+] }
+
+embedded-io = { version = "0.6.1", features = ["defmt-03"] }
 esp-alloc = { version = "0.8.0", features = ["defmt"] }
-esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32"] }
+esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32c3"] }
 esp-wifi = { version = "0.15.0", features = [
   "builtin-scheduler",
   "defmt",
   "esp-alloc",
-  "esp32",
+  "esp32c3",
   "smoltcp",
   "wifi",
 ] }
@@ -36,14 +42,14 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
   "socket-udp",
 ] }
 embedded-graphics = { version = "0.8.1", features = ["defmt"] }
-ssd1306 = "0.10.0"
 embedded-hal = "1.0.0"
 blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-stack.git", rev = "b3ecefc222d8806edd221f266999ca339c52d34e", default-features = false, features = [
   "dhcpv4",
   "tcp",
   "defmt"
 ] }
-embedded-io = "0.6.1"
+embedded-hal-bus = "0.3"
+st7735-lcd = "0.10"
 
 
 [profile.dev]

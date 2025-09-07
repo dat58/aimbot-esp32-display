@@ -6,26 +6,31 @@
     holding buffers for the duration of a data transfer."
 )]
 
+use alloc::string::ToString;
 use aimbot_esp32_display::*;
 use blocking_network_stack::Stack;
 use embedded_graphics::{
     mono_font::{ascii, MonoTextStyle},
-    pixelcolor::BinaryColor,
+    pixelcolor::Rgb565,
     prelude::*,
     text::{Alignment, Text},
 };
 use embedded_hal::delay::DelayNs;
+use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_io::Read;
-use esp_hal::{
-    clock::CpuClock, delay::Delay, i2c::master::I2c, main, time, timer::timg::TimerGroup,
-};
+use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::spi::master::Config as SpiConfig;
+use esp_hal::spi::master::Spi;
+use esp_hal::spi::Mode as SpiMode;
+use esp_hal::time::Rate;
+use esp_hal::{clock::CpuClock, delay::Delay, main, time, timer::timg::TimerGroup};
 use esp_println as _;
 use esp_wifi::wifi;
 use smoltcp::iface::{SocketSet, SocketStorage};
 use smoltcp::socket::dhcpv4::RetryConfig;
 use smoltcp::time::Duration as SmolDuration;
 use smoltcp::wire::DhcpOption;
-use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
+use st7735_lcd::{ST7735, Orientation};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -47,31 +52,34 @@ fn main() -> ! {
 
     esp_alloc::heap_allocator!(size: 74 * 1024);
 
-    let i2c = I2c::new(peripherals.I2C0, Default::default())
+    let spi = Spi::new(
+        peripherals.SPI2,
+        SpiConfig::default()
+            .with_frequency(Rate::from_mhz(4))
+            .with_mode(SpiMode::_0),
+    )
         .unwrap()
-        .with_sda(peripherals.GPIO21)
-        .with_scl(peripherals.GPIO22);
-
-    let interface = I2CDisplayInterface::new(i2c);
-    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
-        .into_buffered_graphics_mode();
+        .with_sck(peripherals.GPIO8)
+        .with_mosi(peripherals.GPIO10);
+    let cs = Output::new(peripherals.GPIO0, Level::Low, OutputConfig::default());
+    let dc = Output::new(peripherals.GPIO1, Level::Low, OutputConfig::default());
+    let reset = Output::new(peripherals.GPIO2, Level::Low, OutputConfig::default());
+    let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).unwrap();
+    let mut display = ST7735::new(spi_dev, dc, reset, true, false, 160, 128);
 
     let mut delay = Delay::new();
-    display.init().unwrap();
-    display.clear(BinaryColor::Off).unwrap();
-    display.flush().unwrap();
-
-    let text_style = MonoTextStyle::new(&ascii::FONT_7X13_BOLD, BinaryColor::On);
+    display.init(&mut delay).unwrap();
+    display.set_orientation(&Orientation::LandscapeSwapped).unwrap();
+    display.clear(Rgb565::CSS_DARK_GRAY).unwrap();
 
     Text::with_alignment(
         "Hacking...",
-        Point::new(64, 32),
-        MonoTextStyle::new(&ascii::FONT_9X18_BOLD, BinaryColor::On),
+        Point::new(80, 64),
+        MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::BLUE),
         Alignment::Center,
     )
-    .draw(&mut display)
-    .unwrap();
-    display.flush().unwrap();
+        .draw(&mut display)
+        .unwrap();
 
     let (ip, port) = get_server_addr();
 
@@ -88,7 +96,7 @@ fn main() -> ! {
     // we can set a hostname here (or add other DHCP options)
     dhcp_socket.set_outgoing_options(&[DhcpOption {
         kind: 12,
-        data: b"implRust",
+        data: b"hacking",
     }]);
 
     let mut retry_config = RetryConfig::default();
@@ -114,14 +122,26 @@ fn main() -> ! {
     connect_wifi(&mut controller);
     obtain_ip(&mut stack);
 
+    display.clear(Rgb565::CSS_DARK_GRAY).unwrap();
+
+    Text::with_alignment(
+        "Wifi Connected.",
+        Point::new(80, 64),
+        MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::YELLOW),
+        Alignment::Center,
+    )
+        .draw(&mut display)
+        .unwrap();
+    delay.delay_ms(2000);
+
     let mut rx_buffer = [0u8; 1536];
     let mut tx_buffer = [0u8; 1536];
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
+    let text_style = MonoTextStyle::new(&ascii::FONT_8X13_BOLD, Rgb565::GREEN);
 
+    let mut old_aim_signal = alloc::string::String::new();
+    let mut old_aim_mode = alloc::string::String::new();
     loop {
-        // clear screen
-        display.clear(BinaryColor::Off).unwrap();
-
         // send request
         let status = send_request(&mut socket, ip, port);
 
@@ -131,13 +151,12 @@ fn main() -> ! {
                 defmt::error!("{}", err.as_str());
                 Text::with_alignment(
                     "! Game Over !",
-                    Point::new(64, 32),
-                    MonoTextStyle::new(&ascii::FONT_9X18_BOLD, BinaryColor::On),
+                    Point::new(80, 64),
+                    MonoTextStyle::new(&ascii::FONT_9X18_BOLD, Rgb565::RED),
                     Alignment::Center,
                 )
-                .draw(&mut display)
-                .unwrap();
-                display.flush().unwrap();
+                    .draw(&mut display)
+                    .unwrap();
                 delay.delay(time::Duration::from_hours(1));
             }
         }
@@ -152,17 +171,21 @@ fn main() -> ! {
             let mut body = text.get(1).unwrap().split(",");
             let aim_signal = body.next().unwrap();
             let aim_mode = body.next().unwrap();
-            let text = alloc::format!("Hacking: {aim_signal}\nAimMode: {aim_mode}");
-
-            Text::with_alignment(
-                text.as_str(),
-                Point::new(10, 28),
-                text_style,
-                Alignment::Left,
-            )
-            .draw(&mut display)
-            .unwrap();
-            display.flush().unwrap();
+            let text = alloc::format!("Hacking: {aim_signal}\n\nAimMode: {aim_mode}");
+            if old_aim_signal != aim_signal || old_aim_mode != aim_mode {
+                // clear screen
+                display.clear(Rgb565::BLACK).unwrap();
+                Text::with_alignment(
+                    text.as_str(),
+                    Point::new(10, 32),
+                    text_style,
+                    Alignment::Left,
+                )
+                    .draw(&mut display)
+                    .unwrap();
+                old_aim_signal = aim_signal.to_string();
+                old_aim_mode = aim_mode.to_string();
+            }
         }
 
         socket.disconnect();
